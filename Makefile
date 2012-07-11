@@ -1,4 +1,12 @@
 obj-m := l2filter.o
+module-objs := filter.o
+
+all:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
+modules_install:
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules_install
 
 clean:
-	rm -rf *.ko *.mod.c *.order *.symvers *.o .*.cmd .tmp_versions
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	rm -f .*.cmd *.mod.c

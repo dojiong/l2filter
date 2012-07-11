@@ -6,8 +6,7 @@
 
 #include <linux/init.h>
 #include <linux/netfilter.h>
-#include <linux/netfilter_bridge.h>
-#include <linux/netlink.h>
+#include "filter.h"
 
 static int __init l2filter_init (void) {
     printk(KERN_INFO "l2filter inited\n");
