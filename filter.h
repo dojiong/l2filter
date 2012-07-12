@@ -40,6 +40,9 @@
 
 #include <linux/netfilter.h>
 
+#ifndef __LO_L2FILTER_FILTER_H
+#define __LO_L2FILTER_FILTER_H
+
 enum MATCH_METHOD {
     kEqual = 0,
     kNotEqual,
@@ -98,3 +101,5 @@ int add_filter(unsigned char *data, int size);
 void clear_filters(void);
 int filter_skb(struct sk_buff *skb,
     const struct net_device *in, const struct net_device *out);
+
+#endif
