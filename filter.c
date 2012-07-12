@@ -88,7 +88,7 @@ int __add_filter(unsigned char *data, int size) {
     if (size < MIN_FILTER_ITEM_SIZE) return -1;
 
     tmp_filter.total_items = data[0];
-    if (tmp_filter.total_items < 1 || tmp_filter.total_items > 4 ||
+    if (tmp_filter.total_items < 1 || tmp_filter.total_items > 8 ||
         (2 + MIN_FILTER_ITEM_SIZE * tmp_filter.total_items) > size) return -1;
 
     tmp_filter.combine_md = data[1];
