@@ -1,5 +1,5 @@
 obj-m := l2filter.o
-l2filter-objs := dump.o filter.o user_comm.o
+l2filter-objs := l2filter_main.o dump.o filter.o user_comm.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
