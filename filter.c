@@ -6,6 +6,7 @@
 
 #include "filter.h"
 #include <linux/netfilter.h>
+#include <linux/netdevice.h>
 #include <linux/mutex.h>
 #include "dump.h"
 #include "user_comm.h"
@@ -13,9 +14,9 @@
 #define MIN_FILTER_ITEM_SIZE (1 + 1 + 2 + 2 + 1)
 #define MIN_FILTER_SIZE (1 + 1 + 1 + MIN_FILTER_ITEM_SIZE)
 
-int _add_filter(unsigned char *data, int size);
-void _clear_filters(void);
-int _filter_skb(struct sk_buff *skb,
+static int _add_filter(unsigned char *data, int size);
+static void _clear_filters(void);
+static int _filter_skb(struct sk_buff *skb,
     const struct net_device *in, const struct net_device *out);
 
 static DEFINE_MUTEX(filter_chain_mutex);
@@ -67,7 +68,7 @@ inline int _build_match_item(unsigned char *data,
     if (item->target >= kMaxTarget) return -1;
 
     item->start = *(unsigned short*)(data + 1 + 1);
-    if (item->target == kDev && item->is_dev_in > 1) return -1;
+    if (item->target == kTargetDev && item->is_dev_in > 1) return -1;
 
     item->size = *(unsigned short*)(data + 1 + 1 + 2);
     item_size = 1 + 1 + 2 + 2 + item->size;
@@ -79,7 +80,7 @@ inline int _build_match_item(unsigned char *data,
     return item_size;
 }
 
-int _add_filter(unsigned char *data, int size) {
+static int _add_filter(unsigned char *data, int size) {
     //filter: BBB[item] (uint8 uint8 uint8 [item])
     //      tmp_filter.total_items, combine method
     int  i, rem_size;
@@ -129,7 +130,7 @@ int _add_filter(unsigned char *data, int size) {
     return 0;
 }
 
-void _clear_filters(void) {
+static void _clear_filters(void) {
     struct filter *cur = &filter_head;
 
     while (cur->next) {
@@ -143,6 +144,48 @@ void _clear_filters(void) {
 
 inline int _run_match_item(struct match_item *item, struct sk_buff *skb,
         const struct net_device *in, const struct net_device *out) {
+    switch (item->target) {
+        case kTargetMAC: {
+            if (skb_mac_header_was_set(skb) &&
+                    skb->mac_len >= item->start + item->size) {
+                if (memcmp(
+                        skb_mac_header(skb) + item->start,
+                        item->mt, item->size
+                        )?kNotEqual:kEqual == item->md) {
+                    return 1;
+                }
+            }
+            break;
+        }
+        case kTargetL2: {
+            if (skb->len >= item->start + item->size) {
+                if (memcmp(skb->data + item->start,
+                    item->mt, item->size
+                    )?kNotEqual:kEqual == item->md) {
+                    return 1;
+                }
+            }
+            break;
+        }
+        case kTargetDev: {
+            if (item->is_dev_in) {
+                if (in &&
+                        strncmp(in->name, item->mt, item->size
+                        )?kNotEqual:kEqual == item->md) {
+                    return 1;
+                }
+            } else {
+                if (out &&
+                        strncmp(out->name, item->mt, item->size
+                        )?kNotEqual:kEqual == item->md) {
+                    return 1;
+                }
+            }
+            break;
+        }
+        default:
+            break;
+    }
     return 0;
 }
 
@@ -163,7 +206,7 @@ inline int _process_skb(int mask, struct sk_buff *skb,
     return NF_ACCEPT;
 }
 
-int _filter_skb(struct sk_buff *skb,
+static int _filter_skb(struct sk_buff *skb,
         const struct net_device *in, const struct net_device *out) {
     struct filter *cur = &filter_head;
     int i;

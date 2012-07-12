@@ -5,21 +5,46 @@
  */
 
 #include <linux/netfilter.h>
+#include <linux/netfilter_bridge.h>
 #include "filter.h"
 #include "user_comm.h"
 
-void msg_input(int pid, unsigned char *data, int size) {
+static unsigned int hook_function(unsigned int hooknum,
+                   struct sk_buff *skb,
+                   const struct net_device *in,
+                   const struct net_device *out,
+                   int (*okfn)(struct sk_buff *)) {
+    
+
+    return NF_ACCEPT;
+}
+
+static void user_msg_input(int pid, unsigned char *data, int size) {
     user_comm_unicast(pid, data, size);
 }
+
+static struct nf_hook_ops _nfho = {
+    .hook = hook_function,
+    .hooknum = NF_BR_PRE_ROUTING,
+    .pf = NFPROTO_UNSPEC,
+    .priority = NF_BR_PRI_FIRST
+};
 
 static int __init l2filter_init (void) {
     int ret;
 
     filter_init();
 
-    ret = user_comm_init(msg_input);
+    ret = user_comm_init(user_msg_input);
     if (ret) {
         printk(KERN_ERR "l2filter: user_comm init fail\n");
+        return ret;
+    }
+
+    ret = nf_register_hook(&_nfho);
+    if (ret) {
+        printk(KERN_ERR "l2filter: register hook fail!\n");
+        user_comm_exit();
         return ret;
     }
     

@@ -13,7 +13,7 @@ class L2Filter(object):
         self.sock = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_L2FILTER)
         self.sock.bind((os.getpid(), 1))
 
-    def send(self, data, type, flags=0, seq=0):
+    def send(self, data, type=0, flags=0, seq=0):
         hdr = struct.pack('IHHII',
             16 + len(data), type, flags, seq, os.getpid())
         _data = hdr + data
