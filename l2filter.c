@@ -9,6 +9,7 @@
 #include "filter.h"
 
 static int __init l2filter_init (void) {
+    filter_init();
     printk(KERN_INFO "l2filter inited\n");
     return 0;
 }

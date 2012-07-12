@@ -38,6 +38,8 @@
  *     l2filter only accept compiled filter
  */
 
+#include <linux/netfilter.h>
+
 enum MATCH_METHOD {
     kEqual = 0,
     kNotEqual,
@@ -81,16 +83,18 @@ struct match_item {
 
 struct filter {
     /*
-     * binary format: BBB[match_item] (count, combine, mask, [items])
+     * binary format: BBB[match_item] (total_items, combine, mask, [items])
      */
+    int total_items;
     int combine_md;
     int process_mask;
     struct match_item *items;
     struct filter *next;
 };
 
+extern int filter_size;
 void filter_init(void);
 int add_filter(unsigned char *data, int size);
-int clear_filters(void);
+void clear_filters(void);
 int filter_skb(struct sk_buff *skb,
     const struct net_device *in, const struct net_device *out);
