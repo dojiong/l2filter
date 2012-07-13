@@ -5,6 +5,7 @@
  */
 
 #include "user_comm.h"
+#include <linux/module.h>
 #include <linux/seq_file_net.h>
 #include <linux/mutex.h>
 
