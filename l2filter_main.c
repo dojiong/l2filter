@@ -14,19 +14,26 @@ static unsigned int hook_function(unsigned int hooknum,
                    const struct net_device *in,
                    const struct net_device *out,
                    int (*okfn)(struct sk_buff *)) {
-    
-
+    if (filter_size > 0) {
+        return filter_skb(skb, in, out);
+    } else {
+        printk(KERN_INFO "no filter installed\n");
+    }
     return NF_ACCEPT;
 }
 
 static void user_msg_input(int pid, unsigned char *data, int size) {
-    user_comm_unicast(pid, data, size);
+    if (add_filter(data, size)) {
+        user_comm_unicast(pid, "fail", 4);
+    } else {
+        user_comm_unicast(pid, "ok", 2);
+    }
 }
 
 static struct nf_hook_ops _nfho = {
     .hook = hook_function,
     .hooknum = NF_BR_PRE_ROUTING,
-    .pf = NFPROTO_UNSPEC,
+    .pf = NFPROTO_BRIDGE,
     .priority = NF_BR_PRI_FIRST
 };
 
@@ -53,8 +60,15 @@ static int __init l2filter_init (void) {
 }
 
 static void __exit l2filter_exit(void) {
+    nf_unregister_hook(&_nfho);
+    printk(KERN_INFO "l2filter hook unregistered\n");
+
     user_comm_exit();
+    printk(KERN_INFO "l2filter user_comm exited\n");
+
     clear_filters();
+    printk(KERN_INFO "l2filter filters cleared\n");
+    
     printk(KERN_INFO "l2filter exit\n");
 }
 

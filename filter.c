@@ -7,7 +7,7 @@
 #include "filter.h"
 #include <linux/netfilter.h>
 #include <linux/netdevice.h>
-#include <linux/mutex.h>
+#include <linux/spinlock.h>
 #include "dump.h"
 #include "user_comm.h"
 
@@ -19,40 +19,40 @@ static void _clear_filters(void);
 static int _filter_skb(struct sk_buff *skb,
     const struct net_device *in, const struct net_device *out);
 
-static DEFINE_MUTEX(filter_chain_mutex);
+static spinlock_t _filter_list_lock = SPIN_LOCK_UNLOCKED;
 static struct filter filter_head;
 static struct filter *filter_tail;
 int filter_size;
 
 void filter_init(void) {
-    mutex_lock(&filter_chain_mutex);
+    spin_lock(&_filter_list_lock);
     filter_head.items = NULL;
     filter_head.next = NULL;
     filter_tail = &filter_head;
     filter_size = 0;
-    mutex_unlock(&filter_chain_mutex);
+    spin_unlock(&_filter_list_lock);
 }
 
 int add_filter(unsigned char *data, int size) {
     int ret;
-    mutex_lock(&filter_chain_mutex);
+    spin_lock(&_filter_list_lock);
     ret = _add_filter(data, size);
-    mutex_unlock(&filter_chain_mutex);
+    spin_unlock(&_filter_list_lock);
     return ret;
 }
 
 void clear_filters(void) {
-    mutex_lock(&filter_chain_mutex);
+    spin_lock(&_filter_list_lock);
     _clear_filters();
-    mutex_unlock(&filter_chain_mutex);
+    spin_unlock(&_filter_list_lock);
 }
 
 int filter_skb(struct sk_buff *skb,
         const struct net_device *in, const struct net_device *out) {
     int ret;
-    mutex_lock(&filter_chain_mutex);
+    if (spin_trylock(&_filter_list_lock) == 0) return NF_ACCEPT;
     ret = _filter_skb(skb, in, out);
-    mutex_unlock(&filter_chain_mutex);
+    spin_unlock(&_filter_list_lock);
     return ret;
 }
 
@@ -87,7 +87,7 @@ static int _add_filter(unsigned char *data, int size) {
     unsigned char *cur_item;
     struct filter tmp_filter;
 
-    if (size < MIN_FILTER_ITEM_SIZE) return -1;
+    if (size < MIN_FILTER_SIZE) return -1;
 
     tmp_filter.total_items = data[0];
     if (tmp_filter.total_items < 1 || tmp_filter.total_items > 8 ||
@@ -131,11 +131,11 @@ static int _add_filter(unsigned char *data, int size) {
 }
 
 static void _clear_filters(void) {
-    struct filter *cur = &filter_head;
+    struct filter *cur = filter_head.next;
 
-    while (cur->next) {
+    while (cur) {
         struct filter *to_free = cur;
-        kfree(cur->items);
+        if (cur->items) kfree(cur->items);
         cur = cur->next;
         kfree(to_free);
     }
@@ -145,13 +145,20 @@ static void _clear_filters(void) {
 inline int _run_match_item(struct match_item *item, struct sk_buff *skb,
         const struct net_device *in, const struct net_device *out) {
     switch (item->target) {
+        case kTargetL2Protocol: {
+            if (skb->protocol == *(unsigned short*)(item->mt)) {
+                return 1;
+            }
+           // printk(KERN_INFO "protocol: %04X\n", skb->protocol);
+            break;
+        }
         case kTargetMAC: {
             if (skb_mac_header_was_set(skb) &&
                     skb->mac_len >= item->start + item->size) {
-                if (memcmp(
+                if ((memcmp(
                         skb_mac_header(skb) + item->start,
                         item->mt, item->size
-                        )?kNotEqual:kEqual == item->md) {
+                        )==0?kEqual:kNotEqual) == item->md) {
                     return 1;
                 }
             }
@@ -159,9 +166,9 @@ inline int _run_match_item(struct match_item *item, struct sk_buff *skb,
         }
         case kTargetL2: {
             if (skb->len >= item->start + item->size) {
-                if (memcmp(skb->data + item->start,
+                if ((memcmp(skb->data + item->start,
                     item->mt, item->size
-                    )?kNotEqual:kEqual == item->md) {
+                    )==0?kEqual:kNotEqual) == item->md) {
                     return 1;
                 }
             }
@@ -170,14 +177,14 @@ inline int _run_match_item(struct match_item *item, struct sk_buff *skb,
         case kTargetDev: {
             if (item->is_dev_in) {
                 if (in &&
-                        strncmp(in->name, item->mt, item->size
-                        )?kNotEqual:kEqual == item->md) {
+                        (strncmp(in->name, item->mt, item->size
+                        )==0?kEqual:kNotEqual) == item->md) {
                     return 1;
                 }
             } else {
                 if (out &&
-                        strncmp(out->name, item->mt, item->size
-                        )?kNotEqual:kEqual == item->md) {
+                        (strncmp(out->name, item->mt, item->size
+                        )==0?kEqual:kNotEqual) == item->md) {
                     return 1;
                 }
             }
@@ -219,6 +226,7 @@ static int _filter_skb(struct sk_buff *skb,
 
         for (i = 0; i < cur->total_items; ++i) {
             int ret = _run_match_item(&cur->items[i], skb, in, out);
+            //printk(KERN_INFO "match #%d: %d\n", i, ret);
             if (cur->combine_md == kCombineAnd) {
                 if (!ret) {
                     matched = 0;
@@ -234,9 +242,12 @@ static int _filter_skb(struct sk_buff *skb,
 
         if (matched) {
             int ret = _process_skb(cur->process_mask, skb, in, out);
+            //printk(KERN_INFO "process result: %d\n", ret);
             if (ret != NF_ACCEPT) {
                 return ret;
             }
+        } else {
+            //printk(KERN_INFO "filter match fail\n\n");
         }
     }
 

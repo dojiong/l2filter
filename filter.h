@@ -50,7 +50,8 @@ enum MATCH_METHOD {
 };
 
 enum MATCH_TARGET {
-    kTargetMAC = 0,
+    kTargetL2Protocol = 0,
+    kTargetMAC,
     kTargetL2,
     kTargetDev,
     kMaxTarget

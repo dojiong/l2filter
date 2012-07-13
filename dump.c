@@ -53,7 +53,7 @@ const char* dump(void* bytes, int size) {
                 buf_i += 4;
             }
         }
-        buf[buf_i - 1] = '\x00';
+        buf[buf_i] = '\x00';
         return buf;
     }
 }
