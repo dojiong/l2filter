@@ -19,7 +19,7 @@ static void _clear_filters(void);
 static int _filter_skb(struct sk_buff *skb,
     const struct net_device *in, const struct net_device *out);
 
-static spinlock_t _filter_list_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(_filter_list_lock);
 static struct filter filter_head;
 static struct filter *filter_tail;
 int filter_size;
