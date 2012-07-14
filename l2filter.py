@@ -158,17 +158,17 @@ class Filter(object):
 
 class L2Filter(object):
     def __init__(self):
-        self.sock = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_L2FILTER)
-        self.sock.bind((os.getpid(), 1))
+        self._sock = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_L2FILTER)
+        self._sock.bind((os.getpid(), 1))
 
     def _send(self, data, type=0, flags=0, seq=0):
         hdr = struct.pack('IHHII',
             16 + len(data), type, flags, seq, os.getpid())
         _data = hdr + data
-        return self.sock.send(_data)
+        return self._sock.send(_data)
 
     def _recv(self):
-        data = self.sock.recv(65535)
+        data = self._sock.recv(65535)
         if len(data) < 16:
             return None
         size, type, flags, seq, pid = struct.unpack('IHHII', data[:16])
@@ -185,6 +185,11 @@ class L2Filter(object):
     def clear_filters(self):
         self._send('C')
         return self._recv() == 'ok'
+
+    def close(self):
+        if self._sock is not None:
+            self._sock.close()
+            self._sock = None
 
 
 def mkItem(md, target, start_or_dev, size, mt):
