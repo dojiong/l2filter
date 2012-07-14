@@ -23,9 +23,14 @@ static unsigned int hook_function(unsigned int hooknum,
 }
 
 static void user_msg_input(int pid, unsigned char *data, int size) {
-    if (add_filter(data, size)) {
-        user_comm_unicast(pid, "fail", 4);
-    } else {
+    if (data[0] == 'A') {
+        if (add_filter(data + 1, size - 1)) {
+            user_comm_unicast(pid, "fail", 4);
+        } else {
+            user_comm_unicast(pid, "ok", 2);
+        }
+    } else if (data[0] == 'C') {
+        clear_filters();
         user_comm_unicast(pid, "ok", 2);
     }
 }
