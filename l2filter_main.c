@@ -16,9 +16,8 @@ static unsigned int hook_function(unsigned int hooknum,
                    int (*okfn)(struct sk_buff *)) {
     if (filter_size > 0) {
         return filter_skb(skb, in, out);
-    } else {
-        printk(KERN_INFO "no filter installed\n");
     }
+
     return NF_ACCEPT;
 }
 
