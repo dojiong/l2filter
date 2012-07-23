@@ -50,7 +50,8 @@ void clear_filters(void) {
 int filter_skb(struct sk_buff *skb,
         const struct net_device *in, const struct net_device *out) {
     int ret;
-    if (spin_trylock(&_filter_list_lock) == 0) return NF_ACCEPT;
+    //if (spin_trylock(&_filter_list_lock) == 0 ) return NF_ACCEPT;
+    spin_lock(&_filter_list_lock);
     ret = _filter_skb(skb, in, out);
     spin_unlock(&_filter_list_lock);
     return ret;
